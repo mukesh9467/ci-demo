@@ -5,17 +5,14 @@ from pydantic import BaseModel
 app = FastAPI()
 
 
-
 class Item(BaseModel):
     name: str
     price: float
 
 
-
 @app.get("/")
 def read_root():
     return {"message": "Python CI/CD Demo App Running"}
-
 
 
 @app.post("/items")
