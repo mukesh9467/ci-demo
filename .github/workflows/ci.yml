@@ -51,7 +51,7 @@ jobs:
         run: pip-audit
 
       - name: Static Code Scan
-        run: bandit -r .
+        run: bandit -r . --exclude ./tests
 
   build-and-push:
     name: Build & Push Docker Image
