@@ -29,9 +29,9 @@ output "node_group_id" {
   value       = aws_eks_node_group.main.id
 }
 
-output "node_group_asg_names" {
-  description = "Auto Scaling Group names for worker nodes"
-  value       = aws_eks_node_group.main.resources[0].auto_scaling_groups[*].name
+output "node_group_status" {
+  description = "EKS node group status"
+  value       = aws_eks_node_group.main.status
 }
 
 output "oidc_provider_arn" {
