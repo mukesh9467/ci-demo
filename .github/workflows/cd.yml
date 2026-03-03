@@ -1,0 +1,103 @@
+name: CD Pipeline - Deploy to EKS
+
+on:
+  workflow_run:
+    workflows: ["Python CI Pipeline"]
+    types: [completed]
+    branches:
+      - main
+
+env:
+  AWS_REGION: ap-south-1
+  ECR_REPOSITORY: python/demo
+  CLUSTER_NAME: ci-demo-eks
+  AWS_ACCOUNT_ID: 942165495572
+
+jobs:
+  deploy:
+    name: Deploy to EKS
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/GitHubECRRole
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get EKS cluster credentials
+        run: |
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.CLUSTER_NAME }}
+
+      - name: Extract short SHA
+        id: sha
+        run: |
+          SHORT_SHA=${{ github.sha }}
+          SHORT_SHA=${SHORT_SHA:0:7}
+          echo "short-sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
+
+      - name: Deploy with kubectl
+        run: |
+          kubectl apply -f k8s/namespace.yaml
+          kubectl set image deployment/ci-demo-app ci-demo-app=${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:${{ steps.sha.outputs.short-sha }} -n ci-demo || true
+          kubectl rollout status deployment/ci-demo-app -n ci-demo --timeout=5m
+
+      - name: Wait for ArgoCD sync (if using ArgoCD)
+        continue-on-error: true
+        run: |
+          # Optional: sync ArgoCD application
+          kubectl patch application ci-demo-app -n argocd --type merge -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
+          sleep 10
+
+      - name: Get deployed service info
+        run: |
+          echo "=== Deployment Status ==="
+          kubectl get deployment -n ci-demo
+          echo ""
+          echo "=== Service Info ==="
+          kubectl get svc -n ci-demo
+          echo ""
+          echo "=== Load Balancer URL ==="
+          kubectl get svc ci-demo-app -n ci-demo -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+
+      - name: Run smoke tests
+        continue-on-error: true
+        run: |
+          # Get the LoadBalancer IP/DNS
+          LB_URL=$(kubectl get svc ci-demo-app -n ci-demo -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+          
+          if [ -z "$LB_URL" ]; then
+            LB_URL=$(kubectl get svc ci-demo-app -n ci-demo -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          fi
+          
+          if [ ! -z "$LB_URL" ]; then
+            echo "Testing endpoint: http://$LB_URL"
+            curl -f http://$LB_URL/ || echo "Service not ready yet"
+          else
+            echo "LoadBalancer URL not ready yet"
+          fi
+
+  notify:
+    name: Notify deployment status
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: always()
+    
+    steps:
+      - name: Deployment result
+        run: |
+          if [ "${{ needs.deploy.result }}" == "success" ]; then
+            echo "✅ Deployment successful!"
+            exit 0
+          else
+            echo "❌ Deployment failed!"
+            exit 1
+          fi
