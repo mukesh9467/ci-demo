@@ -1,6 +1,8 @@
 fastapi
 uvicorn
+httpx
 pytest
+black
 flake8
 bandit
 pip-audit
