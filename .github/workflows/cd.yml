@@ -44,18 +44,32 @@ jobs:
           SHORT_SHA=${SHORT_SHA:0:7}
           echo "short-sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
 
+      - name: Update deployment manifest with new image tag
+        run: |
+          # Update the deployment.yaml with the new image tag
+          sed -i 's|image: 942165495572.dkr.ecr.ap-south-1.amazonaws.com/python/demo:.*|image: 942165495572.dkr.ecr.ap-south-1.amazonaws.com/python/demo:${{ steps.sha.outputs.short-sha }}|g' k8s/deployment.yaml
+
+      - name: Commit and push updated deployment
+        run: |
+          git config --global user.email "github-actions[bot]@github.com"
+          git config --global user.name "GitHub Actions"
+          git add k8s/deployment.yaml
+          git commit -m "chore: Update deployment image to ${{ steps.sha.outputs.short-sha }}" || echo "No changes to commit"
+          git push origin main || echo "No changes to push"
+        continue-on-error: true
+
       - name: Deploy with kubectl
         run: |
           kubectl apply -f k8s/namespace.yaml
-          kubectl set image deployment/ci-demo-app ci-demo-app=${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:${{ steps.sha.outputs.short-sha }} -n ci-demo || true
-          kubectl rollout status deployment/ci-demo-app -n ci-demo --timeout=5m
+          kubectl apply -f k8s/argocd-application.yaml
+          kubectl rollout status deployment/ci-demo-app -n ci-demo --timeout=5m || true
 
-      - name: Wait for ArgoCD sync (if using ArgoCD)
+      - name: Wait for ArgoCD sync
         continue-on-error: true
         run: |
-          # Optional: sync ArgoCD application
+          # Force ArgoCD to sync the updated application
           kubectl patch application ci-demo-app -n argocd --type merge -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
-          sleep 10
+          sleep 15
 
       - name: Get deployed service info
         run: |
