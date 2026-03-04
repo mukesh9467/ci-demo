@@ -17,13 +17,21 @@ jobs:
   deploy:
     name: Deploy to EKS
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.result == 'completed' }}
+    if: always()
 
     permissions:
       id-token: write
       contents: read
 
     steps:
+      - name: Debug workflow event
+        run: |
+          echo "Workflow conclusion: ${{ github.event.workflow_run.conclusion }}"
+          echo "Workflow status: ${{ github.event.workflow_run.status }}"
+          echo "Workflow name: ${{ github.event.workflow_run.name }}"
+          echo "Full event payload:"
+          echo '${{ toJson(github.event) }}'
+
       - name: Checkout code
         uses: actions/checkout@v4
 
