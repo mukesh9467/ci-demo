@@ -71,7 +71,7 @@ resource "kubernetes_service" "argocd_server" {
 
   spec {
     selector = {
-      app.kubernetes.io/name = "argocd-server"
+      "app.kubernetes.io/name" = "argocd-server"
     }
 
     port {

@@ -57,3 +57,9 @@ variable "ecr_repository" {
   type        = string
   default     = "python/demo"
 }
+
+variable "github_repo" {
+  description = "GitHub repository in format owner/repo"
+  type        = string
+  default     = "MukeshSingh14/CI-Demo"
+}
