@@ -13,7 +13,7 @@ class Item(BaseModel):
 def read_root():
     return {
         "message": "Python CI/CD Demo App Running",
-        "version": "2.0 - Dynamic Image Updates Enabled"
+        "version": "2.0 - Dynamic Image Updates Enabled",
     }
 
 
