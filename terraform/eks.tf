@@ -37,6 +37,7 @@ resource "aws_eks_node_group" "main" {
   }
 
   instance_types = var.instance_types
+  ami_type       = "AL2_x86_64"  # Use standard EKS-optimized AMI
 
   tags = {
     Name = "${var.cluster_name}-node-group"
