@@ -58,26 +58,12 @@ jobs:
           git push origin main || echo "No changes to push"
         continue-on-error: true
 
-      - name: Deploy with kubectl
-        run: |
-          kubectl apply -f k8s/namespace.yaml
-          kubectl apply -f k8s/argocd-application.yaml
-          kubectl rollout status deployment/ci-demo-app -n ci-demo --timeout=5m || true
-
-      - name: Wait for ArgoCD sync
+      - name: Trigger ArgoCD sync (optional - speeds up synchronization)
         continue-on-error: true
         run: |
-          # Force ArgoCD to sync the updated application
+          # Force ArgoCD to check git sooner (optional optimization)
+          # ArgoCD will auto-detect changes and sync per its sync interval
           kubectl patch application ci-demo-app -n argocd --type merge -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
-          sleep 15
-
-      - name: Get deployed service info
-        run: |
-          echo "=== Deployment Status ==="
-          kubectl get deployment -n ci-demo
-          echo ""
-          echo "=== Service Info ==="
-          kubectl get svc -n ci-demo
           echo ""
           echo "=== Load Balancer URL ==="
           kubectl get svc ci-demo-app -n ci-demo -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
